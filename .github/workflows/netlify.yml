@@ -11,6 +11,9 @@ jobs:
     name: 'Deploy to Netlify'
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-node@5b52f097d36d4b0b2f94ed6de710023fbb8b2236
+        with:
+          node-version-file: .nvmrc
       - uses: wallies/action-netlify-deploy@master
         with:
           NETLIFY_AUTH_TOKEN: ${{ secrets.MY_TOKEN_SECRET }}

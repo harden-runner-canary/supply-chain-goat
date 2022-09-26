@@ -38,7 +38,7 @@ jobs:
           allowed-endpoints: >
             github.com:443
             registry.npmjs.org:443
-            vth0acprodeus2file0.blob.core.windows.net:443 # check for duplicate
+            vth0acprodeus2file0.blob.core.windows.net:443
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
         with:

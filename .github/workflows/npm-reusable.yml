@@ -1,4 +1,4 @@
-name: npm_ci
+name: npm_reusable
 on: workflow_call
 
 jobs:

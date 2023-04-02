@@ -30,15 +30,13 @@ jobs:
       - run: npm install
   test1:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: step-security/harden-runner@rc
         with:
-          egress-policy: block
-          allowed-endpoints: >
-            github.com:443
-            registry.npmjs.org:443
-            vth0acprodeus2file0.blob.core.windows.net:443
+          policy: supplychain-goat-test1
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
         with:

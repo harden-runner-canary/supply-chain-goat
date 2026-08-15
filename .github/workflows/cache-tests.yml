@@ -60,8 +60,11 @@ jobs:
           key: steady-probe-${{ github.run_id }}-${{ github.run_attempt }}
       - run: mkdir -p cache-probe && date > cache-probe/stamp.txt
 
-  # Scenario C: deny-list mode skips discovery entirely.
-  # PASS: pre-step has NO "cache version:" and NO "Adding cacheHost" lines.
+  # Scenario C: this org is not on the enterprise tier, so denied-endpoints is
+  # ignored and the config degenerates to block with an empty allow list, which
+  # blocks all egress.
+  # PASS: pre-step logs "denied-endpoints is supported on the enterprise tier
+  # only" plus the empty-endpoints warning, and the curl below cannot connect.
   deny-list-block:
     needs: reset-cache-entry
     runs-on: ubuntu-latest
@@ -71,7 +74,12 @@ jobs:
           egress-policy: block
           denied-endpoints: >
             evil.example.com:443
-      - run: curl -sS -o /dev/null https://github.com && echo "non-denied endpoint reachable"
+      - run: |
+          if curl --max-time 10 -sS -o /dev/null https://github.com; then
+            echo "ERROR: egress was not blocked; expected all egress blocked on non-enterprise tier"
+            exit 1
+          fi
+          echo "egress blocked as expected (denied-endpoints ignored on non-enterprise tier)"
 
   # Scenario D: both inputs set = allow-list mode (allowed wins).
   # PASS: pre-step logs the "Both allowed-endpoints and denied-endpoints are

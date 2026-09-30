@@ -56,7 +56,7 @@ jobs:
       - run: npm install
 
   test-arm:
-    runs-on: ARMLinuxRunner
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: step-security/harden-runner@rc
@@ -84,7 +84,7 @@ jobs:
       - run: npm install
       
   test1-arm:
-    runs-on: ARMLinuxRunner
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       id-token: write

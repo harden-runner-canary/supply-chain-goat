@@ -3,33 +3,24 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  id-token: write
 jobs:
   secure-registry-community:
     name: secure-registry-community
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      npm_config_ignore_scripts: 'true'
-      npm_config_audit: 'false'
-      npm_config_fund: 'false'
-      npm_config_fetch_retries: '0'
-      npm_config_fetch_timeout: '30000'
-      npm_config_cache: ${{ runner.temp }}/secure-registry-cache
     defaults:
       run:
         working-directory: ${{ runner.temp }}
     steps:
       - name: Harden Runner
-        # rc-49 supports secure-registry; update the pin when released.
-        uses: step-security/harden-runner@193b0f9f4c9e119f96a54940eebaec986cc46a0a
+        uses: step-security/harden-runner@rc
         with:
           egress-policy: audit
           secure-registry: true
       - name: Verify community registry and install an allowed package
         run: |
           test "$(npm config get registry)" = 'https://community.registry.stepsecurity.io/javascript/'
-          npm install --ignore-scripts --no-save --package-lock=false is-number@7.0.0
+          npm install is-number@7.0.0
       - name: Select a release inside the default cooldown
         id: nightly
         run: |
@@ -49,7 +40,7 @@ jobs:
           VERSION: ${{ steps.nightly.outputs.version }}
         run: |
           # Explicit archive URLs exercise download blocking, not just metadata filtering.
-          if npm install --ignore-scripts --no-save --package-lock=false "https://community.registry.stepsecurity.io/javascript/typescript/-/typescript-$VERSION.tgz" > cooldown.log 2>&1; then
+          if npm install "https://community.registry.stepsecurity.io/javascript/typescript/-/typescript-$VERSION.tgz" > cooldown.log 2>&1; then
             echo '::error::Cooldown package unexpectedly installed'
             exit 1
           fi
@@ -62,7 +53,7 @@ jobs:
         continue-on-error: true
         run: |
           # Actual incident: https://www.stepsecurity.io/blog/20-popular-npm-packages-compromised-chalk-debug-strip-ansi-color-convert-wrap-ansi
-          if npm install --ignore-scripts --no-save --package-lock=false https://community.registry.stepsecurity.io/javascript/chalk/-/chalk-5.6.1.tgz > compromised.log 2>&1; then
+          if npm install https://community.registry.stepsecurity.io/javascript/chalk/-/chalk-5.6.1.tgz > compromised.log 2>&1; then
             echo '::error::Compromised package unexpectedly installed'
             exit 1
           fi

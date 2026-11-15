@@ -1,0 +1,78 @@
+name: Secure Registry community defaults
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  secure-registry-community:
+    name: secure-registry-community
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      npm_config_ignore_scripts: 'true'
+      npm_config_audit: 'false'
+      npm_config_fund: 'false'
+      npm_config_fetch_retries: '0'
+      npm_config_fetch_timeout: '30000'
+      npm_config_cache: ${{ runner.temp }}/secure-registry-cache
+    defaults:
+      run:
+        working-directory: ${{ runner.temp }}
+    steps:
+      - name: Harden Runner
+        # rc-49 supports secure-registry; update the pin when released.
+        uses: step-security/harden-runner@193b0f9f4c9e119f96a54940eebaec986cc46a0a
+        with:
+          egress-policy: audit
+          secure-registry: true
+      - name: Verify community registry and install an allowed package
+        run: |
+          test "$(npm config get registry)" = 'https://community.registry.stepsecurity.io/javascript/'
+          npm install --ignore-scripts --no-save --package-lock=false is-number@7.0.0
+      - name: Select a release inside the default cooldown
+        id: nightly
+        run: |
+          # Read only upstream metadata. All package downloads use Secure Registry.
+          curl -fsS --max-time 30 https://registry.npmjs.org/typescript -o typescript.json
+          version=$(jq -er '."dist-tags".next' typescript.json)
+          published=$(jq -er --arg v "$version" '.time[$v]' typescript.json)
+          age=$(( $(date +%s) - $(date -d "$published" +%s) ))
+          # An hour of margin before the two-day cutoff; stale fixtures fail.
+          test "$age" -ge 0 && test "$age" -lt 169200
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Testing typescript@$version, published $published"
+      - name: Verify cooldown blocks the download
+        id: cooldown
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.nightly.outputs.version }}
+        run: |
+          # Explicit archive URLs exercise download blocking, not just metadata filtering.
+          if npm install --ignore-scripts --no-save --package-lock=false "https://community.registry.stepsecurity.io/javascript/typescript/-/typescript-$VERSION.tgz" > cooldown.log 2>&1; then
+            echo '::error::Cooldown package unexpectedly installed'
+            exit 1
+          fi
+          cat cooldown.log
+          grep -q '403' cooldown.log
+          grep -q 'blocked by security policy with StepSecurity' cooldown.log
+          grep -qi 'cooldown' cooldown.log
+      - name: Verify a known compromised package is blocked
+        id: compromised
+        continue-on-error: true
+        run: |
+          # Actual incident: https://www.stepsecurity.io/blog/20-popular-npm-packages-compromised-chalk-debug-strip-ansi-color-convert-wrap-ansi
+          if npm install --ignore-scripts --no-save --package-lock=false https://community.registry.stepsecurity.io/javascript/chalk/-/chalk-5.6.1.tgz > compromised.log 2>&1; then
+            echo '::error::Compromised package unexpectedly installed'
+            exit 1
+          fi
+          cat compromised.log
+          grep -q '403' compromised.log
+          grep -q 'blocked by security policy with StepSecurity' compromised.log
+          grep -qi 'compromised' compromised.log
+      - name: Require both protections to pass
+        if: always()
+        env:
+          COOLDOWN: ${{ steps.cooldown.outcome }}
+          COMPROMISED: ${{ steps.compromised.outcome }}
+        run: test "$COOLDOWN" = success && test "$COMPROMISED" = success
